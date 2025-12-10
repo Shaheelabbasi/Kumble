@@ -1,0 +1,245 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model users {
+  id            String          @id @default(uuid()) @db.Uuid
+  email         String          @unique
+  password_hash String
+  referral_code String          @unique @default(uuid())
+  is_verified   Boolean         @default(false)
+  created_at    DateTime        @default(now())
+  updated_at    DateTime        @default(now())
+  
+
+    //  Referral System
+  referred_by   String?         @db.Uuid
+  referredBy    users?          @relation("UserReferrals", fields: [referred_by], references: [id])
+  referrals     users[]         @relation("UserReferrals")
+
+  profile       user_profiles?
+  hobbies       user_hobbies[]
+  match_members match_members[]
+  events_hosted events[]         @relation("UserEventsHost") // remove fields/references
+  event_attend  event_attendees[]
+  chat_messages chat_messages[]
+  crypto_wallets crypto_wallets[]
+  nfts          nfts[]
+  sessions      user_sessions[]
+  mail_logs     mail_logs[]
+}
+
+// ------------------- USER PROFILES -------------------
+model user_profiles {
+  user_id      String   @id @db.Uuid
+  display_name String?
+  bio          String?
+  age          Int?
+  gender       String?
+  avatar_url   String?
+  country      String?
+  city         String?
+  language     String?  @default("en")
+  location     Bytes?   // GEOGRAPHY(Point,4326)
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now())
+  
+  user         users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+// ------------------- HOBBIES -------------------
+model hobbies {
+  id        String         @id @default(uuid()) @db.Uuid
+  name      String         @unique
+  icon_url  String?
+  created_at DateTime      @default(now())
+
+  users     user_hobbies[]
+}
+
+// ------------------- USER HOBBIES -------------------
+model user_hobbies {
+  user_id String @db.Uuid
+  hobby_id String @db.Uuid
+  created_at DateTime @default(now())
+
+  user   users   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  hobby  hobbies @relation(fields: [hobby_id], references: [id], onDelete: Cascade)
+
+  @@id([user_id, hobby_id])
+}
+
+// ------------------- MATCHES -------------------
+model matches {
+  id        String        @id @default(uuid()) @db.Uuid
+  type      String        @default("group")
+  created_at DateTime     @default(now())
+
+  members   match_members[]
+}
+
+// ------------------- MATCH MEMBERS -------------------
+model match_members {
+  match_id String @db.Uuid
+  user_id  String @db.Uuid
+  joined_at DateTime @default(now())
+
+  match   matches @relation(fields: [match_id], references: [id], onDelete: Cascade)
+  user    users   @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([match_id, user_id])
+}
+
+// ------------------- EVENTS -------------------
+model events {
+  id          String    @id @default(uuid()) @db.Uuid
+  host_id     String?   @db.Uuid
+  title       String
+  description String?
+  hobby_id    String?   @db.Uuid
+  location    Bytes?    // GEOGRAPHY(Point,4326)
+  start_time  DateTime?
+  end_time    DateTime?
+  capacity    Int?
+  price_cents Int       @default(0)
+  currency    String    @default("EUR")
+  created_at  DateTime  @default(now())
+
+  host        users?    @relation("UserEventsHost", fields: [host_id], references: [id], onDelete: SetNull)
+  attendees   event_attendees[]
+}
+
+// ------------------- EVENT ATTENDEES -------------------
+model event_attendees {
+  event_id  String @db.Uuid
+  user_id   String @db.Uuid
+  status    String @default("going")
+  created_at DateTime @default(now())
+
+  event     events @relation(fields: [event_id], references: [id], onDelete: Cascade)
+  user      users  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@id([event_id, user_id])
+}
+
+// ------------------- CHAT ROOMS -------------------
+model chat_rooms {
+  id           String        @id @default(uuid()) @db.Uuid
+  room_type    String
+  reference_id String?       @db.Uuid
+  created_at   DateTime      @default(now())
+
+  messages     chat_messages[]
+}
+
+// ------------------- CHAT MESSAGES -------------------
+model chat_messages {
+  id         String    @id @default(uuid()) @db.Uuid
+  room_id    String    @db.Uuid
+  sender_id  String    @db.Uuid
+  message    String?
+  created_at DateTime  @default(now())
+
+  room       chat_rooms @relation(fields: [room_id], references: [id], onDelete: Cascade)
+  sender     users      @relation(fields: [sender_id], references: [id], onDelete: Cascade)
+}
+
+// ------------------- TRANSLATIONS -------------------
+model translations {
+  id            String   @id @default(uuid()) @db.Uuid
+  entity_type   String
+  entity_id     String   @db.Uuid
+  language      String
+  translated_text Json
+  created_at    DateTime @default(now())
+}
+
+// ------------------- PRICE TIERS -------------------
+model price_tiers {
+  id         String          @id @default(uuid()) @db.Uuid
+  min_guests Int
+  max_guests Int
+  price_cents Int
+
+  overrides  price_overrides[]  // back-relation
+}
+
+// ------------------- PRICE OVERRIDES -------------------
+model price_overrides {
+  id                  String   @id @default(uuid()) @db.Uuid
+  country             String
+  base_tier_id        String   @db.Uuid
+  override_price_cents Int
+  created_at          DateTime @default(now())
+
+  base_tier price_tiers @relation(fields: [base_tier_id], references: [id])
+}
+
+// ------------------- CRYPTO WALLETS -------------------
+model crypto_wallets {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  solana_address String @unique
+  created_at DateTime @default(now())
+
+  user       users @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+// ------------------- NFTS -------------------
+model nfts {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String?  @db.Uuid
+  type        String
+  metadata_uri String?
+  minted_at   DateTime?
+  tx_signature String?
+  created_at  DateTime @default(now())
+
+  user        users? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+}
+
+// ------------------- USER SESSIONS -------------------
+model user_sessions {
+  id         String   @id @default(uuid()) @db.Uuid
+  user_id    String   @db.Uuid
+  ip_address String?
+  user_agent String?
+  created_at DateTime @default(now())
+  expires_at DateTime?
+
+  user       users @relation(fields: [user_id], references: [id])
+}
+
+// ------------------- AI EMBEDDINGS -------------------
+model ai_embeddings {
+  id          String   @id @default(uuid()) @db.Uuid
+  entity_type String
+  entity_id   String   @db.Uuid
+ // embedding   Bytes?
+  created_at  DateTime @default(now())
+}
+
+// ------------------- MAIL LOGS -------------------
+model mail_logs {
+  id          String   @id @default(uuid()) @db.Uuid
+  user_id     String   @db.Uuid
+  subject     String?
+  category    String?
+  snippet     String?
+  received_at DateTime @default(now())
+  ai_summary  String?
+  status      String   @default("pending")
+
+  user        users @relation(fields: [user_id], references: [id])
+}
