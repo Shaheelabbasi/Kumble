@@ -28,6 +28,10 @@ model users {
   referredBy    users?          @relation("UserReferrals", fields: [referred_by], references: [id])
   referrals     users[]         @relation("UserReferrals")
 
+
+ twoFASecret   String?         // nullable
+  enable2FA     Boolean         @default(false)
+  
   profile       user_profiles?
   hobbies       user_hobbies[]
   match_members match_members[]
