@@ -7,6 +7,7 @@ import {
   Param,
   Delete,
   UseGuards,
+  Req,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { SignupDto } from './dto/signup.dto';
@@ -16,6 +17,7 @@ import { LoginDto } from './dto/login.dto';
 import { TwoFactorAuthService } from './two-factor-auth';
 import { JwtAuthGuard } from './guards/jwt.guard';
 import { Auth } from 'utils/decorators/current-user.decorator';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -58,29 +60,32 @@ export class AuthController {
     return this.authService.login(dto);
   }
 
+  @Get('enable-2fa')
+  @UseGuards(JwtAuthGuard)
+  enable2FA(@Auth() user) {
+    return this.twoFactorAuthService.enable2FA(user.id);
+  }
 
-@Get('enable-2fa')
-@UseGuards(JwtAuthGuard)
-enable2FA(@Auth() user) {
-  return this.twoFactorAuthService.enable2FA(user.id);
-}
+  @Post('validate-2fa')
+  validate2FA(@Body() body: { userId: string; token: string }) {
+    return this.twoFactorAuthService.validate2FAToken(body.userId, body.token);
+  }
 
-@Post('validate-2fa')
-@UseGuards(JwtAuthGuard)
-validate2FA(
-  @Auth() user,
-  @Body() body: {token:string},
-): Promise<{ verified: boolean }> {
-  return this.twoFactorAuthService.validate2FAToken(
-    user.id,
-    body.token,
-  );
-}
+  @Get('disable-2fa')
+  @UseGuards(JwtAuthGuard)
+  disable2FA(@Auth() user) {
+    return this.twoFactorAuthService.disable2FA(user.id);
+  }
 
-@Get('disable-2fa')
-@UseGuards(JwtAuthGuard)
-disable2FA(@Auth() user) {
-  return this.twoFactorAuthService.disable2FA(user.id);
-}
+  @Get('google')
+  @UseGuards(GoogleAuthGuard)
+  async googleAuth() {
+    // Redirects automatically
+  }
 
+  @Get('google/callback')
+  @UseGuards(GoogleAuthGuard)
+  async googleAuthCallback(@Req() req) {
+    return this.authService.googleLogin(req.user);
+  }
 }

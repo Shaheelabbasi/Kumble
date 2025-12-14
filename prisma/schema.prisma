@@ -31,7 +31,13 @@ model users {
 
  twoFASecret   String?         // nullable
   enable2FA     Boolean         @default(false)
-  
+
+  auth_provider String @default("local") // local | google
+
+   //web auth
+   webauthn_challenge String?
+  webauthn_credentials webauthn_credentials[]
+
   profile       user_profiles?
   hobbies       user_hobbies[]
   match_members match_members[]
@@ -60,6 +66,19 @@ model user_profiles {
   updated_at   DateTime @default(now())
   
   user         users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+//web_auth
+
+model webauthn_credentials {
+  id            String   @id @default(uuid())
+  user_id       String   @db.Uuid
+  credential_id Bytes    @unique
+  public_key    Bytes
+  counter       Int
+  device_type   String?   // e.g., "platform" or "cross-platform"
+  created_at    DateTime @default(now())
+
+  user          users    @relation(fields: [user_id], references: [id], onDelete: Cascade)
 }
 
 // ------------------- HOBBIES -------------------

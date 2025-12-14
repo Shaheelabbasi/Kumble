@@ -7,25 +7,61 @@ import { prisma } from 'src/prisma/prisma.client';
 
 import * as speakeasy from 'speakeasy';
 import { UsersService } from 'src/users/users.service';
+import * as QRCode from 'qrcode';
+import { JwtService } from '@nestjs/jwt';
+JwtService;
 @Injectable()
 export class TwoFactorAuthService {
-  constructor(private readonly userService: UsersService) {}
+  constructor(
+    private readonly userService: UsersService,
 
-  async enable2FA(userId: string): Promise<{ secret: string | null }> {
+    private readonly jwtService: JwtService,
+  ) {}
+
+  async enable2FA(userId: string) {
     const user = await prisma.users.findUnique({
       where: { id: userId },
     });
 
     if (!user) {
-      throw new BadRequestException('User not found ');
+      throw new BadRequestException('User not found');
     }
 
-    if (user?.enable2FA) {
-      return { secret: user.twoFASecret };
+    // ✅ If secret already exists, reuse it
+    if (user.twoFASecret) {
+      const otpauthUrl = this.createOtpAuthUrl(user.email, user.twoFASecret);
+
+      const qrCode = await QRCode.toDataURL(otpauthUrl);
+
+      return {
+        secret: user.twoFASecret,
+        otpauthUrl,
+        qrCode,
+      };
     }
-    const secret = speakeasy.generateSecret().base32;
-    await this.userService.updateSecretKey(user.id, secret);
-    return { secret };
+
+    // ✅ Generate full secret object
+    const secret = speakeasy.generateSecret({
+      length: 20,
+      name: `MyApp (${user.email})`,
+      issuer: 'MyApp',
+    });
+    //✅ Store ONLY base32 secret
+    await prisma.users.update({
+      where: { id: user.id },
+      data: {
+        twoFASecret: secret.base32,
+        enable2FA: false, // ❗ NOT enabled yet
+      },
+    });
+
+    const qrCode = await QRCode.toDataURL(secret.otpauth_url);
+
+    return {
+      secret: secret.base32,
+      otpauthUrl: secret.otpauth_url,
+      qrCode,
+    };
   }
 
   async disable2FA(userId: string) {
@@ -41,27 +77,53 @@ export class TwoFactorAuthService {
   async validate2FAToken(
     userId: string,
     token: string,
-  ): Promise<{ verified: boolean }> {
-    try {
-      const user = await prisma.users.findUnique({
-        where: { id: userId },
-        select: { twoFASecret: true },
-      });
+  ) {
+    const user = await prisma.users.findUnique({
+      where: { id: userId },
+      select: {
+        twoFASecret: true,
+        enable2FA: true,
+        id:true,
+        email:true
+      },
+    });
 
-      if (!user || !user.twoFASecret) {
-        throw new UnauthorizedException('2FA not enabled');
-      }
-
-      const verified = speakeasy.totp.verify({
-        secret: user.twoFASecret,
-        token,
-        encoding: 'base32',
-      });
-
-      return { verified };
-    } catch (error) {
-      console.error(error);
-      throw new UnauthorizedException('Error verifying token');
+    if (!user || !user.twoFASecret) {
+      throw new UnauthorizedException('2FA not enabled');
     }
+
+    const verified = speakeasy.totp.verify({
+      secret: user.twoFASecret,
+      token,
+      encoding: 'base32',
+      window: 1, // ✅ allow ±30s clock drift
+    });
+
+    if (!verified) {
+      return { verified: false };
+    }
+
+    // ✅ Enable 2FA AFTER successful verification
+    if (!user.enable2FA) {
+      await prisma.users.update({
+        where: { id: userId },
+        data: { enable2FA: true },
+      });
+    }
+
+    const payload = { sub: user.id, email: user.email };
+    const access_token = this.jwtService.sign(payload);
+
+    return {
+      access_token,
+      user: {
+        id: user.id,
+        email: user.email,
+      },
+    };
+  }
+
+  private createOtpAuthUrl(email: string, secret: string) {
+    return `otpauth://totp/MyApp:${email}?secret=${secret}&issuer=MyApp`;
   }
 }

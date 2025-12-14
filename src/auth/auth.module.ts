@@ -6,7 +6,9 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './strategy/jwt.strategy';
 import { UsersModule } from 'src/users/users.module';
 import { TwoFactorAuthService } from './two-factor-auth';
-
+import { WebAuthnController } from './webauth.controller';
+import { WebAuthnService } from './webauth.service';
+WebAuthnController
 @Module({
   imports: [
     PassportModule,
@@ -16,8 +18,8 @@ import { TwoFactorAuthService } from './two-factor-auth';
     }),
     UsersModule,
   ],
-  controllers: [AuthController],
-  providers: [AuthService, JwtStrategy,TwoFactorAuthService],
+  controllers: [AuthController,WebAuthnController],
+  providers: [AuthService, JwtStrategy,TwoFactorAuthService,WebAuthnService],
   exports: [AuthService],
 })
 export class AuthModule {}
