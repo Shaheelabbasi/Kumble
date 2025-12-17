@@ -24,10 +24,17 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(dto.password, 10);
 
+    let referrer: any = null;
+    if (dto.referralCode) {
+      referrer = await prisma.users.findUnique({
+        where: { referral_code: dto.referralCode },
+      });
+    }
     const user = await prisma.users.create({
       data: {
         email: dto.email,
         password_hash: hashedPassword,
+        referral_code: dto.referralCode,
         profile: {
           create: {
             display_name: dto.displayName,
@@ -39,7 +46,15 @@ export class AuthService {
         profile: true,
       },
     });
-
+    if (referrer) {
+      await prisma.referral_rewards.create({
+        data: {
+          referrerId: referrer.id,
+          newUserId: user.id,
+          status: 'pending', // initial reward status
+        },
+      });
+    }
     return {
       id: user.id,
       email: user.email,
@@ -97,13 +112,12 @@ export class AuthService {
       include: { profile: true },
     });
 
-    
     if (!user) {
       user = await prisma.users.create({
         data: {
           email: googleUser.email,
           is_verified: true,
-          password_hash:'',
+          password_hash: '',
           profile: {
             create: {
               display_name: googleUser.displayName,
@@ -114,7 +128,6 @@ export class AuthService {
       });
     }
 
-   
     if (user.enable2FA) {
       return {
         requires2FA: true,
@@ -123,7 +136,6 @@ export class AuthService {
       };
     }
 
-    
     const payload = { sub: user.id, email: user.email };
     const token = this.jwtService.sign(payload);
 

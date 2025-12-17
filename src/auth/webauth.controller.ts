@@ -1,11 +1,13 @@
-import { Controller, Post, Body, Param } from '@nestjs/common';
+import { Controller, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { WebAuthnService } from './webauth.service';
+import { JwtAuthGuard } from './guards/jwt.guard';
 
 @Controller('webauthn')
 export class WebAuthnController {
   constructor(private readonly webAuthnService: WebAuthnService) {}
 
   @Post('register/options/:userId')
+  @UseGuards(JwtAuthGuard)
   generateRegistrationOptions(@Param('userId') userId: string, @Body() body: any) {
     return this.webAuthnService.generateRegistrationOptions(userId, body.email);
   }

@@ -38,6 +38,9 @@ model users {
    webauthn_challenge String?
   webauthn_credentials webauthn_credentials[]
 
+   //web auth
+   role String?
+
   profile       user_profiles?
   hobbies       user_hobbies[]
   match_members match_members[]
@@ -48,6 +51,16 @@ model users {
   nfts          nfts[]
   sessions      user_sessions[]
   mail_logs     mail_logs[]
+}
+//user rewards
+
+model referral_rewards {
+  id          String   @id @default(uuid()) @db.Uuid
+  referrerId  String   @db.Uuid   // user who referred
+  newUserId   String   @db.Uuid   // user who signed up using referral
+  status      String   @default("pending") // pending | claimed | expired
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
 }
 
 // ------------------- USER PROFILES -------------------
@@ -61,7 +74,7 @@ model user_profiles {
   country      String?
   city         String?
   language     String?  @default("en")
-  location     Bytes?   // GEOGRAPHY(Point,4326)
+  location     String?   // GEOGRAPHY(Point,4326)
   created_at   DateTime @default(now())
   updated_at   DateTime @default(now())
   

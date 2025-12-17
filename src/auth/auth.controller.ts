@@ -62,29 +62,66 @@ export class AuthController {
 
   @Get('enable-2fa')
   @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Enable 2FA for the current user' })
+  @ApiResponse({
+    status: 200,
+    description: '2FA successfully enabled and secret returned',
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized JWT token missing or invalid',
+  })
   enable2FA(@Auth() user) {
     return this.twoFactorAuthService.enable2FA(user.id);
   }
 
   @Post('validate-2fa')
+  @ApiOperation({ summary: 'Validate a 2FA token' })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        userId: { type: 'string', example: '12345' },
+        token: { type: 'string', example: '654321' },
+      },
+      required: ['userId', 'token'],
+    },
+  })
+  @ApiResponse({ status: 200, description: '2FA token is valid' })
+  @ApiResponse({ status: 400, description: 'Invalid 2FA token' })
   validate2FA(@Body() body: { userId: string; token: string }) {
     return this.twoFactorAuthService.validate2FAToken(body.userId, body.token);
   }
 
   @Get('disable-2fa')
   @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Disable 2FA for the current user' })
+  @ApiResponse({ status: 200, description: '2FA successfully disabled' })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized JWT token missing or invalid',
+  })
   disable2FA(@Auth() user) {
     return this.twoFactorAuthService.disable2FA(user.id);
   }
 
   @Get('google')
   @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Redirect to Google OAuth login' })
+  @ApiResponse({ status: 302, description: 'Redirects to Google login page' })
   async googleAuth() {
     // Redirects automatically
   }
 
   @Get('google/callback')
   @UseGuards(GoogleAuthGuard)
+  @ApiOperation({ summary: 'Handle Google OAuth callback' })
+  @ApiResponse({
+    status: 200,
+    description: 'User successfully authenticated via Google',
+  })
+  @ApiResponse({ status: 401, description: 'Google authentication failed' })
   async googleAuthCallback(@Req() req) {
     return this.authService.googleLogin(req.user);
   }
